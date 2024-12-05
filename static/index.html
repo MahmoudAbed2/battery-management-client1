@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        header {
+            background: #007bff;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 20px;
+        }
+        ul li {
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #output {
+            margin: 20px;
+            padding: 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #output h2 {
+            margin-top: 0;
+        }
+        #loading {
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-bar span {
+            display: block;
+            height: 20px;
+            background-color: #007bff;
+            width: 0;
+        }
+        .car-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #car-status {
+            font-size: 20px;
+            color: #28a745;  /* Green text for "charging" */
+        }
+        .percentage {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #charged-info {
+            font-size: 16px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Battery Management System</h1>
+    </header>
+    <main>
+        <ul>
+            <li><button onclick="fetchInfo()">Hämta aktuell simuleringstid och batteristatus</button></li>
+            <li><button onclick="fetchBaseload()">Hämta hushållets energiförbrukning</button></li>
+            <li><button onclick="fetchPrices()">Hämta elpriser per timme</button></li>
+            <li><button onclick="startCharging()">Starta laddning</button></li>
+            <li><button onclick="stopCharging()">Stoppa laddning</button></li>
+            <li><button onclick="dischargeBattery()">Ladda ur batteriet till 20%</button></li>
+        </ul>
+        <button style="background-color: #dc3545;" onclick="closePage()">Avsluta</button>
+        <div id="output">
+            <h2>Output</h2>
+            <pre id="result">Ingen data än.</pre>
+        </div>
+
+        <!-- Laddningsindikator -->
+        <div id="loading">
+            <h3 id="car-status">Bilen laddar...</h3>
+            <div class="progress-bar">
+                <span id="progress" style="width: 0%"></span>
+            </div>
+            <div id="percentage" class="percentage">0% Laddad</div>
+        </div>
+
+        <!-- Bilstatus -->
+        <div id="car-container" class="car-container">
+            <p id="charging-text">ladda Bilen ....</p>
+        </div>
+
+        <!-- Visar laddad procent när laddningen stoppas -->
+        <div id="charged-info">
+            <p id="charged-status"></p>
+        </div>
+    </main>
+    <script>
+        const BASE_URL = 'http://127.0.0.1:5000';
+        let currentCharge = 100;  // Börjar på 100% eftersom vi börjar med full laddning
+
+        async function fetchInfo() {
+            try {
+                const res = await fetch(`${BASE_URL}/info`);
+                if (!res.ok) {
+                    throw new Error('Failed to fetch information.');
+                }
+                const data = await res.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function fetchBaseload() {
+            try {
+                const res = await fetch(`${BASE_URL}/baseload`);
+                if (!res.ok) {
+                    throw new Error('Failed to fetch household energy.');
+                }
+                const data = await res.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function fetchPrices() {
+            try {
+                const res = await fetch(`${BASE_URL}/priceperhour`);
+                if (!res.ok) {
+                    throw new Error('Failed to fetch hourly prices.');
+                }
+                const data = await res.json();
+                
+                let output = '--- Elpriser per timme ---\n';
+                data.prices.forEach((price, index) => {
+                    output += `Timme ${index + 1}: ${price} SEK/kWh\n`;
+                });
+                
+                document.getElementById('result').textContent = output;
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function startCharging() {
+            try {
+                // Visa laddningsindikator
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('charging-text').textContent = "Laddning pågår...";
+
+                const res = await fetch(`${BASE_URL}/charge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: 'start' })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to start charging.');
+                }
+
+                const data = await res.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+
+                // Simulera laddningen genom att uppdatera progressbaren och procenten
+                currentCharge = 0;
+                const progressInterval = setInterval(() => {
+                    if (currentCharge >= 100) {
+                        clearInterval(progressInterval);
+                        document.getElementById('charging-text').textContent = "Laddning slutförd!";
+                        document.getElementById('car-status').textContent = "Bilen är fulladdad!";
+                    } else {
+                        currentCharge += 10;
+                        document.getElementById('progress').style.width = `${currentCharge}%`;
+                        document.getElementById('percentage').textContent = `${currentCharge}% Laddad`;
+                    }
+                }, 500);  // Uppdatera varje halv sekund
+
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function stopCharging() {
+            try {
+                const res = await fetch(`${BASE_URL}/charge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: 'stop' })
+                });
+                if (!res.ok) {
+                    throw new Error('Failed to stop charging.');
+                }
+                const data = await res.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('loading').style.display = 'none';  // Dölja laddningsindikatorn
+
+                // Visa laddad procent när laddningen stoppas
+                document.getElementById('charged-status').textContent = `Bilen laddades till ${currentCharge}%`;
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function dischargeBattery() {
+            try {
+                // Visa urladdningsindikator
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('charging-text').textContent = "Laddning ur pågår...";
+
+                const progressInterval = setInterval(() => {
+                    if (currentCharge <= 20) {
+                        clearInterval(progressInterval);
+                        document.getElementById('charging-text').textContent = "Batteriet är nu urladdat till 20%!";
+                        document.getElementById('car-status').textContent = "Bilen är urladdad!";
+                    } else {
+                        currentCharge -= 10;
+                        document.getElementById('progress').style.width = `${currentCharge}%`;
+                        document.getElementById('percentage').textContent = `${currentCharge}% Urladdat`;
+                    }
+                }, 500);  // Uppdatera varje halv sekund
+
+            } catch (error) {
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function closePage() {
+            window.close();
+        }
+    </script>
+</body>
+</html>
